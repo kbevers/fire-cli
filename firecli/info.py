@@ -19,6 +19,7 @@ def info():
     """
     pass
 
+
 def koordinat_linje(koord):
     """
     Konstruer koordinatoutput ud fra koordinatens dimensionalitet
@@ -47,6 +48,7 @@ def koordinat_linje(koord):
 
     return linje
 
+
 def punkt_rapport(punkt: Punkt, ident: str, i: int, n: int) -> None:
     """
     Rapportgenerator for funktionen 'punkt' nedenfor.
@@ -66,7 +68,7 @@ def punkt_rapport(punkt: Punkt, ident: str, i: int, n: int) -> None:
         tekst = info.tekst or ""
         # efter mellemrum rykkes teksten ind på linje med resten af
         # attributteksten
-        tekst = tekst.replace("\n", "\n"+" "*25).replace("\r", "")
+        tekst = tekst.replace("\n", "\n" + " " * 25).replace("\r", "")
         tal = info.tal or ""
         firecli.print(f"  {info.infotype.name:20}:  {tekst}{tal}")
     firecli.print("")
@@ -77,12 +79,14 @@ def punkt_rapport(punkt: Punkt, ident: str, i: int, n: int) -> None:
         firecli.print("")
 
     firecli.print("--- KOORDINATER ---", bold=True)
-    punkt.koordinater.sort(key=lambda x: (x.srid.name, x.t.strftime('%Y-%m-%dT%H:%M')), reverse=True)
+    punkt.koordinater.sort(
+        key=lambda x: (x.srid.name, x.t.strftime("%Y-%m-%dT%H:%M")), reverse=True
+    )
     for koord in punkt.koordinater:
         if koord.registreringtil is not None:
-            firecli.print("  " + koordinat_linje (koord), fg="red")
+            firecli.print("  " + koordinat_linje(koord), fg="red")
         else:
-            firecli.print("* " + koordinat_linje (koord), fg="green")
+            firecli.print("* " + koordinat_linje(koord), fg="green")
     firecli.print("")
 
     firecli.print("--- OBSERVATIONER ---", bold=True)
@@ -151,24 +155,41 @@ def punkt(ident: str, **kwargs) -> None:
 
 @info.command()
 @firecli.default_options()
-@click.argument("srid")
-def srid(srid: str, **kwargs):
+@click.argument("srid", required=False)
+@click.option("-a", "--all", is_flag=True, help="Vis alle SRID'er")
+def srid(srid: str, all: bool, **kwargs):
     """
-    Information om et givent SRID (Spatial Reference ID)
+    Information om et givent SRID (Spatial Reference ID).
+
+    Returnerer en oversigt over en given SRIDs egenskaber.
+    Hvis ingen SRID angives returneres en liste over SRID'er der ikke bruges
+    til tidsserier. Tidsserie-SRID'er kan slås til med --all.
 
     Eksempler på SRID'er: EPSG:25832, DK:SYS34, TS:81013
     """
-    srid_name = srid
+    if srid is not None:
+        try:
+            srid = firedb.hent_srid(srid)
+            firecli.print(f" SRID        : {srid.name}")
+            firecli.print(f" Beskrivelse : {srid.beskrivelse}")
+            firecli.print(f" X           : {srid.x}")
+            firecli.print(f" Y           : {srid.y}")
+            firecli.print(f" Z           : {srid.z}")
+        except NoResultFound:
+            firecli.print(f"Error! {srid_name} not found!", fg="red", err=True)
+            sys.exit(1)
+    else:
+        srider = []
+        srider.extend(firedb.hent_srider(namespace="EPSG"))
+        srider.extend(firedb.hent_srider(namespace="DK"))
+        srider.extend(firedb.hent_srider(namespace="GL"))
+        srider.extend(firedb.hent_srider(namespace="FO"))
+        if all:
+            srider.extend(firedb.hent_srider(namespace="TS"))
 
-    try:
-        srid = firedb.hent_srid(srid_name)
-    except NoResultFound:
-        firecli.print(f"Error! {srid_name} not found!", fg="red", err=True)
-        sys.exit(1)
-
-    firecli.print("--- SRID ---", bold=True)
-    firecli.print(f" Name:       :  {srid.name}")
-    firecli.print(f" Description :  {srid.beskrivelse}")
+        firecli.print("--- SRID ---", bold=True)
+        for srid in srider:
+            firecli.print(f" {srid.name:15}:  {srid.beskrivelse}")
 
 
 @info.command()
